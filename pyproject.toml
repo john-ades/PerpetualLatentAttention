@@ -1,0 +1,15 @@
+[project]
+name = "perpetual-latent-attention"
+version = "0.1.0"
+description = "Migrating GQA Models to MLA with Full Compatibility and Speedup"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "vllm==0.19.0",
+    "transformers",
+    "datasets",
+    "accelerate",
+    "datatrove",
+    "tensorboardX",
+    "torch>=2.8.0"
+]
