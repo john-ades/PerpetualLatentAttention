@@ -12,5 +12,5 @@ dependencies = [
     "deepspeed",
     "datasets",
     "accelerate",
-    "lighteval[vllm]"
+    "lighteval>=0.13.0"
 ]
