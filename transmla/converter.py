@@ -12,7 +12,7 @@ from lora_qkv import low_rank_qkv
 def load_model_and_tokenizer(args):
     model = AutoModelForCausalLM.from_pretrained(
         args.model_path,
-        torch_dtype = torch.float16 if args.dtype == "fp16" else torch.bfloat16 if args.dtype == "bf16" else torch.float32,
+        dtype = torch.float16 if args.dtype == "fp16" else torch.bfloat16 if args.dtype == "bf16" else torch.float32,
         device_map=args.device,
         _attn_implementation="sdpa",
         trust_remote_code=True,

@@ -87,7 +87,7 @@ training_args = parser.parse_args_into_dataclasses()[0]
 
 model = transformers.AutoModelForCausalLM.from_pretrained(
     training_args.model_name_or_path,
-    torch_dtype=torch.bfloat16,
+    dtype=torch.bfloat16,
     attn_implementation=training_args.attn_implementation, 
     trust_remote_code=True,
 )
