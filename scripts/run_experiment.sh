@@ -46,9 +46,8 @@ uv run python transmla/converter.py \
 # ==============================================================================
 echo -e "\n[2/3] Healing model on $DATASET using DeepSpeed & Accelerate..."
 
-# fineweb-edu is a massive 1.3TB dataset. We dynamically patch train.py 
-# to load the 'sample-10BT' subset to avoid multi-hour downloads/OOM issues.
-sed -i.bak 's/load_dataset(training_args.data_path, split="train")/load_dataset(training_args.data_path, name="sample-10BT", split="train")/g' training/train.py
+# fineweb-edu is a massive 1.3TB dataset. We pass 'sample-10BT' subset and 
+# max_train_samples below to avoid multi-hour downloads and disk quota exceeded issues.
 
 # Patch the zero3.yaml configuration file to use the specified number of GPUs
 sed -i.bak "s/num_processes: .*/num_processes: $NUM_GPUS/g" training/zero3.yaml
@@ -61,6 +60,8 @@ uv run accelerate launch \
     training/train.py \
     --model_name_or_path "$CONVERTED_PATH" \
     --data_path "$DATASET" \
+    --dataset_name "sample-10BT" \
+    --max_train_samples 10000 \
     --output_dir "$FINETUNED_PATH" \
     --bf16 \
     --num_train_epochs 1 \
@@ -77,7 +78,6 @@ uv run accelerate launch \
     --max_steps 100 
 
 # Clean up modified files
-mv training/train.py.bak training/train.py
 mv training/zero3.yaml.bak training/zero3.yaml
 
 echo "====================================================================="

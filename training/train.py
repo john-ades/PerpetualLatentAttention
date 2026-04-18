@@ -79,6 +79,8 @@ class DataCollatorWithFlattening(transformers.DefaultDataCollator):
 class TrainingArguments(transformers.TrainingArguments):
     model_name_or_path: Optional[str] = field(default="meta-llama/Meta-Llama-3-8B")
     data_path: str = field(default=None, metadata={"help": "Path to the training data."})
+    dataset_name: Optional[str] = field(default=None, metadata={"help": "The dataset name to use (e.g. sample-10BT)."})
+    max_train_samples: Optional[int] = field(default=None, metadata={"help": "For debugging, truncate the number of training examples."})
     attn_implementation : Optional[str] = field(default="sdpa")
     seq_len: int = field(default=2048,metadata={"help": "Maximum sequence length. Sequences will be right padded (and possibly truncated)."},)
 
@@ -91,12 +93,18 @@ model = transformers.AutoModelForCausalLM.from_pretrained(
     attn_implementation=training_args.attn_implementation, 
     trust_remote_code=True,
 )
-tokenizer = transformers.AutoTokenizer.from_pretrained(training_args.model_name_or_path,)
+tokenizer = transformers.AutoTokenizer.from_pretrained(training_args.model_name_or_path, fix_mistral_regex=True)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.pad_token_id = tokenizer.eos_token_id
 
-train_dataset = load_dataset(training_args.data_path, split="train")
+if training_args.max_train_samples is not None:
+    train_dataset = load_dataset(training_args.data_path, name=training_args.dataset_name, split="train", streaming=True).take(training_args.max_train_samples)
+    from datasets import Dataset
+    train_dataset = Dataset.from_generator(lambda: (yield from train_dataset))
+else:
+    train_dataset = load_dataset(training_args.data_path, name=training_args.dataset_name, split="train")
+
 processed_dataset = train_dataset.map(
     preprocess_function,
     batched=True,
