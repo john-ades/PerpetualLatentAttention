@@ -93,7 +93,7 @@ uv run accelerate launch \
 echo -e "\n[3/3] Running Lighteval Benchmark on Transformed & Healed MLA Model..."
 
 uv run lighteval vllm \
-    "model_name=$FINETUNED_PATH,dtype=bfloat16,tensor_parallel_size=$NUM_GPUS,max_model_len=2048,trust_remote_code=True" \
+    "model_name=$FINETUNED_PATH,dtype=bfloat16,tensor_parallel_size=$NUM_GPUS,trust_remote_code=True" \
     "leaderboard|hellaswag|0|0,leaderboard|arc:challenge|0|0,leaderboard|piqa|0|0,leaderboard|winogrande|0|0,leaderboard|openbookqa|0|0,leaderboard|mmlu|0|0"
 
 echo "====================================================================="
