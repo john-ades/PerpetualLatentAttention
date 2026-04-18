@@ -43,7 +43,7 @@ def modify_config(model, config_path: str, args):
     for key, value in setting.items():
         config[key] = value
     
-    config["model_type"] = f"{model_type}mla"
+    config["model_type"] = f"{model_type}_mla"
     config["num_key_value_heads"] = config["num_attention_heads"]
     config["attention_bias"] = model.model.layers[0].self_attn.attention_bias
     config["qk_rope_head_dim"] = config["head_dim"] = args.qk_mqa_dim

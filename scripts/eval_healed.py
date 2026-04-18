@@ -15,7 +15,29 @@ def main():
     model_path = sys.argv[1]
     print(f"\n[Eval] Loading tokenizer and model from {model_path}...")
     
-    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+    try:
+        from vllm import ModelRegistry
+        from transmla.vllm_registry.deepseek import DeepseekV2ForCausalLM
+        ModelRegistry.register_model("LlamaMLAForCausalLM", DeepseekV2ForCausalLM)
+        ModelRegistry.register_model("Gemma2MLAForCausalLM", DeepseekV2ForCausalLM)
+    except ImportError:
+        pass  # If vLLM is not installed, continue with Transformers
+
+    # Load from original model definition to avoid tokenizer config mappings missing for custom architectures
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+    except ValueError:
+        # Fallback to the base tokenizer to circumvent AutoTokenizer crashing on custom config class
+        base_model_path_from_config = "meta-llama/Llama-3.1-8B"
+        import json
+        try:
+            with open(os.path.join(model_path, "config.json"), "r") as f:
+                config_json = json.load(f)
+            base_model_path_from_config = config_json.get("_name_or_path", base_model_path_from_config)
+        except Exception:
+            pass
+        tokenizer = AutoTokenizer.from_pretrained(base_model_path_from_config, trust_remote_code=True)
+
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.pad_token_id = tokenizer.eos_token_id

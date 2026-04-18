@@ -1,7 +1,7 @@
 from transformers.models.gemma2.configuration_gemma2 import Gemma2Config
 
 class Gemma2MLAConfig(Gemma2Config):
-    model_type = "gemma2mla"
+    model_type = "gemma2_mla"
 
     def __init__(
         self, 

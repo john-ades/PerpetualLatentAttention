@@ -1,7 +1,7 @@
 from transformers.models.llama.configuration_llama import LlamaConfig
 
 class LlamaMLAConfig(LlamaConfig):
-    model_type = "llamamla"
+    model_type = "llama_mla"
 
     def __init__(
         self, 
