@@ -1,5 +1,11 @@
 #!/bin/bash
 
+sudo apt update
+
+git clone https://github.com/john-ades/PerpetualLatentAttention.git
+
+cd PerpetualLatentAttention
+
 # ==============================================================================
 # Input Validation
 # ==============================================================================
