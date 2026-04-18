@@ -10,7 +10,7 @@ dependencies = [
     "transformers",
     "hf-transfer",
     "deepspeed",
-    "datasets<3.0",
+    "datasets<4.0",
     "accelerate",
-    "lighteval>=0.13.0"
+    "lighteval<0.10.0"
 ]
