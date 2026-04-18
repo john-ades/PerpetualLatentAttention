@@ -21,11 +21,11 @@ if [ -z "$1" ]; then
 fi
 
 NUM_GPUS=$1
-MODEL_NAME="meta-llama/Llama-3.2-1B"
+MODEL_NAME="meta-llama/Llama-3.1-8B"
 
 # Directories for the converted and healed models
-CONVERTED_PATH="outputs/llama3.2-1B-mla"
-FINETUNED_PATH="outputs/llama3.2-1B-mla-healed"
+CONVERTED_PATH="outputs/llama3.1-8B-mla"
+FINETUNED_PATH="outputs/llama3.1-8B-mla-healed"
 
 # Finetuning dataset
 DATASET="HuggingFaceFW/fineweb-edu"
