@@ -92,7 +92,7 @@ uv run accelerate launch \
 # ==============================================================================
 echo -e "\n[3/3] Running Lighteval Benchmark on Transformed & Healed MLA Model..."
 
-uv run lighteval vllm \
+HF_DATASETS_TRUST_REMOTE_CODE=1 uv run lighteval vllm \
     "model_name=$FINETUNED_PATH,dtype=bfloat16,tensor_parallel_size=$NUM_GPUS,trust_remote_code=True" \
     "hellaswag|0,arc:challenge|0,piqa|0,winogrande|0,openbookqa|0,mmlu|0"
 
