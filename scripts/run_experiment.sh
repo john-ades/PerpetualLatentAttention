@@ -87,6 +87,13 @@ uv run accelerate launch \
     --report_to "none" \
     --max_steps 100 
 
+# ==============================================================================
+# Step 3: Evaluation Benchmark
+# ==============================================================================
+echo -e "\n[3/3] Running Lighteval Benchmark on Transformed & Healed MLA Model..."
+
+(cd lighteval && ./eval.sh "../$FINETUNED_PATH")
+
 echo "====================================================================="
 echo "✅ Pipeline Completed Successfully!"
 echo "Transformed & Healed MLA Model saved at: $FINETUNED_PATH"
