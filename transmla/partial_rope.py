@@ -149,7 +149,10 @@ class PartialRope(nn.Module):
         use_cache: bool = False,
         cache_position: Optional[torch.LongTensor] = None,
         position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+        if past_key_value is None and "past_key_values" in kwargs:
+            past_key_value = kwargs.get("past_key_values")
         bsz, q_len, _ = hidden_states.size()
 
         query_states = self.q_proj(hidden_states)

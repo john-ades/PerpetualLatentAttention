@@ -9,6 +9,7 @@ dependencies = [
     "torch>=2.8.0",
     "transformers",
     "hf-transfer",
+    "deepspeed",
     "datasets",
     "accelerate"
 ]
