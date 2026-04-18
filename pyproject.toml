@@ -11,6 +11,5 @@ dependencies = [
     "hf-transfer",
     "deepspeed",
     "datasets<4.0",
-    "accelerate",
-    "lighteval<0.10.0"
+    "accelerate"
 ]
