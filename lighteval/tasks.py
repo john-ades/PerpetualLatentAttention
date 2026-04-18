@@ -2,8 +2,10 @@ import re
 import numpy as np
 
 from lighteval.tasks.lighteval_task import LightevalTaskConfig
-from lighteval.tasks.requests import Doc
-from lighteval.metrics.metrics import Metrics, SampleLevelMetric, MetricCategory, MetricUseCase, ExactMatches
+from lighteval.tasks.requests import Doc, SamplingMethod
+from lighteval.metrics.metrics import Metrics
+from lighteval.metrics.utils.metric_utils import SampleLevelMetric
+from lighteval.metrics.metrics_sample import ExactMatches
 import lighteval.tasks.default_prompts as prompt
 from .math_utils import parse_math_answer
 
@@ -273,9 +275,8 @@ quasi_exact_match_math = SampleLevelMetric(
         strip_strings=True,
         normalize_pred=lambda text: parse_math_answer(text, "math"),
         normalize_gold=lambda text: parse_math_answer(text, "math")
-    ).compute,
-    category=MetricCategory.GENERATIVE,
-    use_case=MetricUseCase.MATH,
+    ),
+    category=SamplingMethod.GENERATIVE,
     corpus_level_fn=np.mean,
     higher_is_better=True,
 )
