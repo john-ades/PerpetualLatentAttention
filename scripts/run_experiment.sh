@@ -82,7 +82,7 @@ echo -e "\n[1/3] Extracting activations on wikitext-2 & Converting Model to MLA.
 
 # We use --freqfold 4 as defined in your scripts/llama3.2-1B.sh. 
 # This calibration step is mapped to a single GPU (cuda:0).
-python transmla/converter.py \
+uv run python transmla/converter.py \
     --model-path "$MODEL_NAME" \
     --save-path "$CONVERTED_PATH" \
     --cal-dataset wikitext2 \
@@ -106,7 +106,7 @@ sed -i.bak "s/num_processes: .*/num_processes: $NUM_GPUS/g" training/zero3.yaml
 # Run the training script with accelerate. 
 # --max_steps 100 is used here to ensure a quick sanity check of the pipeline.
 # Remove it when you want to run the full training loop.
-accelerate launch \
+uv run accelerate launch \
     --config_file training/zero3.yaml \
     training/train.py \
     --model_name_or_path "$CONVERTED_PATH" \
