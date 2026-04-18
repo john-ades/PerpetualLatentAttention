@@ -11,56 +11,7 @@ fi
 
 NUM_GPUS=$1
 
-# ==============================================================================
-# Tmux Encapsulation (Protect against SSH drops)
-# ==============================================================================
-# If INSIDE_TMUX_RUN is not set, we are outside the encapsulated session
-if [ -z "$INSIDE_TMUX_RUN" ]; then
-  if ! command -v tmux &> /dev/null; then
-    echo "❌ Error: tmux is not installed. Please install it (e.g., 'sudo apt install tmux' or 'brew install tmux')."
-    exit 1
-  fi
 
-  SESSION_NAME="pla_pipeline"
-  LOG_FILE="pipeline_run.log"
-  SCRIPT_PATH=$(realpath "$0" 2>/dev/null || echo "$PWD/$0")
-
-  echo "====================================================================="
-  echo "🛡️  Encapsulating execution in a tmux session to protect against SSH drops..."
-  echo "📌 Session Name: $SESSION_NAME"
-  echo "💡 If your connection drops, reconnect and run: tmux attach-session -t $SESSION_NAME"
-  echo "====================================================================="
-  sleep 3
-  
-  # Start the script inside a detached tmux session, tee output to a log, and wait for user input at the end
-  env INSIDE_TMUX_RUN=1 tmux new-session -d -s "$SESSION_NAME" \
-    "bash \"$SCRIPT_PATH\" \"$NUM_GPUS\" 2>&1 | tee \"$LOG_FILE\"; echo ''; echo '✅ Script finished. Press [ENTER] to close this window.'; read"
-
-  # Attach your current terminal to the secure session
-  tmux attach-session -t "$SESSION_NAME"
-  
-  # Exit the parent shell once detached or closed
-  exit 0
-fi
-
-# Exit immediately if a command exits with a non-zero status inside tmux
-set -e
-
-# ==============================================================================
-# Robust Cleanup on Exit / Failure
-# ==============================================================================
-cleanup() {
-    echo -e "\n🧹 Running cleanup..."
-    [ -f training/train.py.bak ] && mv training/train.py.bak training/train.py
-    [ -f training/zero3.yaml.bak ] && mv training/zero3.yaml.bak training/zero3.yaml
-    [ -f benchmark_and_test.py ] && rm -f benchmark_and_test.py
-}
-trap cleanup EXIT
-
-# ==============================================================================
-# Configuration Variables
-# ==============================================================================
-# Base model to use
 MODEL_NAME="meta-llama/Llama-3.2-1B" 
 
 # Directories for the converted and healed models
