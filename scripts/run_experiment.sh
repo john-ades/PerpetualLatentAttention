@@ -85,7 +85,7 @@ uv run accelerate launch \
     --logging_steps 10 \
     --lr_scheduler_type "cosine" \
     --report_to "none" \
-    --max_steps 100 
+    --max_steps 2000 
 
 # ==============================================================================
 # Step 3: Evaluation
