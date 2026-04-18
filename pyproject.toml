@@ -11,5 +11,6 @@ dependencies = [
     "hf-transfer",
     "deepspeed",
     "datasets",
-    "accelerate"
+    "accelerate",
+    "lighteval[vllm]"
 ]
