@@ -2,6 +2,16 @@
 set -e
 
 # ==============================================================================
+# Cleanup
+# ==============================================================================
+cleanup() {
+    if [ -f "training/zero3.yaml.bak" ]; then
+        mv training/zero3.yaml.bak training/zero3.yaml
+    fi
+}
+trap cleanup EXIT
+
+# ==============================================================================
 # Input Validation
 # ==============================================================================
 if [ -z "$1" ]; then
@@ -76,9 +86,6 @@ uv run accelerate launch \
     --lr_scheduler_type "cosine" \
     --report_to "none" \
     --max_steps 100 
-
-# Clean up modified files
-mv training/zero3.yaml.bak training/zero3.yaml
 
 echo "====================================================================="
 echo "✅ Pipeline Completed Successfully!"
