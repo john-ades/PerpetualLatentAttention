@@ -10,9 +10,7 @@ if [ -z "$1" ]; then
 fi
 
 NUM_GPUS=$1
-
-
-MODEL_NAME="meta-llama/Llama-3.2-1B" 
+MODEL_NAME="meta-llama/Llama-3.2-1B"
 
 # Directories for the converted and healed models
 CONVERTED_PATH="outputs/llama3.2-1B-mla"
@@ -77,14 +75,11 @@ uv run accelerate launch \
     --report_to "none" \
     --max_steps 100 
 
-# Restore original files via explicit call to prevent duplicate actions later
+# Clean up modified files
 mv training/train.py.bak training/train.py
 mv training/zero3.yaml.bak training/zero3.yaml
-
-# Clean up done natively via trap function.
 
 echo "====================================================================="
 echo "✅ Pipeline Completed Successfully!"
 echo "Transformed & Healed MLA Model saved at: $FINETUNED_PATH"
-echo "Logs have been saved to: pipeline_run.log"
 echo "====================================================================="
