@@ -87,6 +87,13 @@ uv run accelerate launch \
     --report_to "none" \
     --max_steps 500 
 
+# ==============================================================================
+# Step 3: Evaluation
+# ==============================================================================
+echo -e "\n[3/3] Evaluating the healed MLA model..."
+
+uv run python scripts/eval_healed.py "$FINETUNED_PATH"
+
 echo "====================================================================="
 echo "✅ Pipeline Completed Successfully!"
 echo "Transformed & Healed MLA Model saved at: $FINETUNED_PATH"
