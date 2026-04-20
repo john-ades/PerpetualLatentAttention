@@ -72,7 +72,6 @@ uv run accelerate launch \
     --model_name_or_path "$CONVERTED_PATH" \
     --data_path "$DATASET" \
     --dataset_name "sample-10BT" \
-    --max_train_samples 10000 \
     --output_dir "$FINETUNED_PATH" \
     --bf16 \
     --num_train_epochs 1 \
