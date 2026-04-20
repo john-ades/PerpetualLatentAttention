@@ -11,5 +11,6 @@ dependencies = [
     "hf-transfer",
     "deepspeed",
     "datasets<4.0",
-    "accelerate"
+    "accelerate",
+    "wandb"
 ]

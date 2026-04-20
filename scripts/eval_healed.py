@@ -57,5 +57,11 @@ def main():
     ppl = evaluate_ppl(model, tokenizer.pad_token_id, test_loader, "Evaluating Healed Model")
     print(f"\n✅ Final Healed Perplexity on Wikitext-2: {ppl:.4f}")
 
+    import wandb
+    wandb.init(project=os.environ.get("WANDB_PROJECT", "perpetual-latent-attention"), name="eval_healed", job_type="eval")
+    wandb.log({"eval/perplexity_wikitext2": ppl})
+    wandb.finish()
+
+
 if __name__ == "__main__":
     main()
