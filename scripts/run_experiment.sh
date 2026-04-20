@@ -86,7 +86,7 @@ uv run accelerate launch \
     --logging_steps 10 \
     --lr_scheduler_type "cosine" \
     --report_to "wandb" \
-    --max_steps 2000 
+    --max_steps 500 
 
 # ==============================================================================
 # Step 3: Evaluation
