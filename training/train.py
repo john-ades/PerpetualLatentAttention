@@ -9,10 +9,12 @@ def preprocess_function(examples, tokenizer, seq_len):
     model_inputs = {"input_ids": [[]]}
     acc_len = 0
     for message in examples['text']:
-        message_ids = tokenizer.encode(message, add_special_tokens=False)
-        input_ids_list = []
-        for i in range(0, len(message_ids), seq_len - 1):
-            input_ids_list.append(message_ids[i:i + seq_len - 1] + [tokenizer.eos_token_id])
+        # Add EOS to the very end of the document
+        message_ids = tokenizer.encode(message, add_special_tokens=False) + [tokenizer.eos_token_id]
+        
+        # Chunk it into seq_len blocks
+        input_ids_list = [message_ids[i:i + seq_len] for i in range(0, len(message_ids), seq_len)]
+        
         for input_ids in input_ids_list:
             if acc_len + len(input_ids) > seq_len:
                 model_inputs["input_ids"].append([input_ids])
