@@ -98,21 +98,53 @@ if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.pad_token_id = tokenizer.eos_token_id
 
-if training_args.max_train_samples is not None:
-    train_dataset = load_dataset(training_args.data_path, name=training_args.dataset_name, split="train", streaming=True).take(training_args.max_train_samples)
-    from datasets import Dataset
-    train_dataset = Dataset.from_generator(lambda: (yield from train_dataset))
-else:
-    train_dataset = load_dataset(training_args.data_path, name=training_args.dataset_name, split="train")
+if training_args.data_path == "mixed_healing":
+    from datasets import interleave_datasets
+    from datasets.distributed import split_dataset_by_node
+    import os
 
-processed_dataset = train_dataset.map(
-    preprocess_function,
-    batched=True,
-    batch_size=1024,
-    remove_columns=train_dataset.column_names,
-    num_proc=128,
-    fn_kwargs={"tokenizer": tokenizer, "seq_len": training_args.seq_len}
-)
+    fineweb = load_dataset("HuggingFaceFW/fineweb-edu", split="train", streaming=True).select_columns(["text"])
+    cosmopedia = load_dataset("HuggingFaceTB/cosmopedia-v2", split="train", streaming=True).select_columns(["text"])
+    open_web_math = load_dataset("open-web-math/open-web-math", split="train", streaming=True).select_columns(["text"])
+    python_edu = load_dataset("HuggingFaceTB/smollm-corpus", "python-edu", split="train", streaming=True).select_columns(["text"]) 
+    stackoverflow = load_dataset("HuggingFaceTB/smollm-corpus", "stackoverflow", split="train", streaming=True).select_columns(["text"])
+
+    train_dataset = interleave_datasets(
+        [fineweb, cosmopedia, open_web_math, python_edu, stackoverflow],
+        probabilities=[0.70, 0.15, 0.08, 0.06, 0.01],
+        seed=42,
+    )
+
+    rank = int(os.environ.get("RANK", 0))
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    train_dataset = split_dataset_by_node(train_dataset, rank=rank, world_size=world_size)
+
+    if training_args.max_train_samples is not None:
+        train_dataset = train_dataset.take(training_args.max_train_samples)
+
+    processed_dataset = train_dataset.map(
+        preprocess_function,
+        batched=True,
+        batch_size=1024,
+        remove_columns=["text"],
+        fn_kwargs={"tokenizer": tokenizer, "seq_len": training_args.seq_len}
+    )
+else:
+    if training_args.max_train_samples is not None:
+        train_dataset = load_dataset(training_args.data_path, name=training_args.dataset_name, split="train", streaming=True).take(training_args.max_train_samples)
+        from datasets import Dataset
+        train_dataset = Dataset.from_generator(lambda: (yield from train_dataset))
+    else:
+        train_dataset = load_dataset(training_args.data_path, name=training_args.dataset_name, split="train")
+
+    processed_dataset = train_dataset.map(
+        preprocess_function,
+        batched=True,
+        batch_size=1024,
+        remove_columns=train_dataset.column_names,
+        num_proc=128,
+        fn_kwargs={"tokenizer": tokenizer, "seq_len": training_args.seq_len}
+    )
 
 trainer = transformers.Trainer(
     args=training_args,

@@ -28,7 +28,7 @@ CONVERTED_PATH="outputs/llama3.1-8B-mla"
 FINETUNED_PATH="outputs/llama3.1-8B-mla-healed"
 
 # Finetuning dataset
-DATASET="HuggingFaceFW/fineweb-edu"
+DATASET="mixed_healing"
 
 echo "====================================================================="
 echo "🚀 Starting Perpetual Latent Attention Pipeline with $NUM_GPUS GPUs"
