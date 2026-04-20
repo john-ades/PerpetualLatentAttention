@@ -219,7 +219,7 @@ def evaluate_ppl(
 
     model.eval()
 
-    if pad_token_id:
+    if pad_token_id is not None:
         loss_fn = torch.nn.CrossEntropyLoss(reduction="none", ignore_index=pad_token_id)
     else:
         loss_fn = torch.nn.CrossEntropyLoss(reduction="none")

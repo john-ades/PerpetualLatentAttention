@@ -89,7 +89,7 @@ training_args = parser.parse_args_into_dataclasses()[0]
 
 model = transformers.AutoModelForCausalLM.from_pretrained(
     training_args.model_name_or_path,
-    dtype=torch.bfloat16,
+    torch_dtype=torch.bfloat16,
     attn_implementation=training_args.attn_implementation, 
     trust_remote_code=True,
 )
@@ -153,7 +153,7 @@ trainer = transformers.Trainer(
     args=training_args,
     model=model,
     train_dataset=processed_dataset,
-    data_collator=DataCollatorWithFlattening(max_len=training_args.seq_len, pad_token_id=tokenizer.pad_token_id)
+    data_collator=DataCollatorWithFlattening(max_len=training_args.seq_len, pad_token_id=tokenizer.pad_token_id, return_position_ids=False)
 )
 trainer.train()
 trainer.save_state()
