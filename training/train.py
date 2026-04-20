@@ -106,8 +106,11 @@ if training_args.data_path == "mixed_healing":
     fineweb = load_dataset("HuggingFaceFW/fineweb-edu", "sample-10BT", split="train", streaming=True).select_columns(["text"])
     cosmopedia = load_dataset("HuggingFaceTB/cosmopedia-v2", "cosmopedia-v2", split="train", streaming=True).select_columns(["text"])
     open_web_math = load_dataset("open-web-math/open-web-math", "default", split="train", streaming=True).select_columns(["text"])
-    python_edu = load_dataset("HuggingFaceTB/smollm-corpus", "python-edu", split="train", streaming=True).select_columns(["text"]) 
-    stackoverflow = load_dataset("HuggingFaceTB/smollm-corpus", "stackoverflow", split="train", streaming=True).select_columns(["text"])
+    python_edu = load_dataset("flytech/python-codes-25k", split="train", streaming=True).select_columns(["text"]) 
+    
+    def format_so(x):
+        return {"text": str(x.get("title", "")) + "\n\n" + str(x.get("body", ""))}
+    stackoverflow = load_dataset("pacovaldez/stackoverflow-questions", split="train", streaming=True).map(format_so).select_columns(["text"])
 
     train_dataset = interleave_datasets(
         [fineweb, cosmopedia, open_web_math, python_edu, stackoverflow],
