@@ -97,7 +97,32 @@ model = transformers.AutoModelForCausalLM.from_pretrained(
     attn_implementation=training_args.attn_implementation, 
     trust_remote_code=True,
 )
-tokenizer = transformers.AutoTokenizer.from_pretrained(training_args.model_name_or_path, fix_mistral_regex=True, trust_remote_code=True)
+try:
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        training_args.model_name_or_path, 
+        fix_mistral_regex=True, 
+        trust_remote_code=True
+    )
+except ValueError:
+    import json
+    import os
+    config_path = os.path.join(training_args.model_name_or_path, "config.json")
+    if not os.path.exists(config_path):
+        raise ValueError(f"Could not find tokenizer files or config.json in {training_args.model_name_or_path}")
+        
+    with open(config_path, "r") as f:
+        config_json = json.load(f)
+        
+    base_model_path = config_json.get("_name_or_path")
+    if not base_model_path:
+        raise ValueError(f"Cannot fallback: `_name_or_path` missing in {config_path}")
+    
+    print(f"Tokenizer not found in directory. Falling back to parent model: {base_model_path}")
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        base_model_path, 
+        fix_mistral_regex=True, 
+        trust_remote_code=True
+    )
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.pad_token_id = tokenizer.eos_token_id
@@ -254,6 +279,7 @@ if training_args.train_m6_adapter:
         tbptt_chunks=2,
         args=training_args,
         model=model,
+        tokenizer=tokenizer,
         train_dataset=processed_dataset,
         data_collator=DataCollatorWithFlattening(max_len=training_args.seq_len * 2, pad_token_id=tokenizer.pad_token_id, return_position_ids=False)
     )
@@ -261,6 +287,7 @@ else:
     trainer = transformers.Trainer(
         args=training_args,
         model=model,
+        tokenizer=tokenizer,
         train_dataset=processed_dataset,
         data_collator=DataCollatorWithFlattening(max_len=training_args.seq_len, pad_token_id=tokenizer.pad_token_id, return_position_ids=False)
     )
