@@ -237,10 +237,7 @@ class M6TBPTTTrainer(transformers.Trainer):
             # 4. Backpropagate the Chunk
             total_loss += loss.detach() / self.tbptt_chunks
             
-            if self.use_amp:
-                self.scaler.scale(loss).backward()
-            else:
-                self.accelerator.backward(loss)
+            self.accelerator.backward(loss)
                 
             handle.remove()
             
@@ -279,7 +276,7 @@ if training_args.train_m6_adapter:
         tbptt_chunks=2,
         args=training_args,
         model=model,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         train_dataset=processed_dataset,
         data_collator=DataCollatorWithFlattening(max_len=training_args.seq_len * 2, pad_token_id=tokenizer.pad_token_id, return_position_ids=False)
     )
@@ -287,7 +284,7 @@ else:
     trainer = transformers.Trainer(
         args=training_args,
         model=model,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         train_dataset=processed_dataset,
         data_collator=DataCollatorWithFlattening(max_len=training_args.seq_len, pad_token_id=tokenizer.pad_token_id, return_position_ids=False)
     )
