@@ -100,20 +100,53 @@ class MLAAttention(nn.Module):
         compressed_kv = self.kv_a_proj_with_mqa(hidden_states)
         k_pass, k_rot = torch.split(compressed_kv, [self.kv_lora_rank, self.qk_rope_head_dim], dim=-1)
 
-        if self.qk_latent_layernorm:
-            k_pass = self.kv_b_proj(self.kv_a_layernorm(k_pass)).view(key_shape).transpose(1, 2)
+        # ====================================================
+        # 1. INJECT M.6 LATENT MEMORY (READ PATH)
+        # ====================================================
+        memory_P = kwargs.get("memory_latents", None) # shape: (B, S, kv_lora_rank)
+        S = memory_P.shape[1] if memory_P is not None else 0
+        
+        if memory_P is not None:
+            # Prepend memory slots to the latent NoPE vector
+            k_pass_combined = torch.cat([memory_P, k_pass], dim=1)
         else:
-            k_pass = self.kv_b_proj(k_pass).view(key_shape).transpose(1, 2)
-        k_pass, value_states = torch.split(k_pass, [self.qk_nope_head_dim, self.v_head_dim], dim=-1)
+            k_pass_combined = k_pass
 
+        key_shape = (batch_size, seq_length + S, -1, self.qk_nope_head_dim + self.v_head_dim)
+
+        # ====================================================
+        # 2. LET TRANSMLA UNPACK MEMORY NATURALLY
+        # ====================================================
+        if self.qk_latent_layernorm:
+            k_pass_proj = self.kv_b_proj(self.kv_a_layernorm(k_pass_combined)).view(key_shape).transpose(1, 2)
+        else:
+            k_pass_proj = self.kv_b_proj(k_pass_combined).view(key_shape).transpose(1, 2)
+        
+        k_nope, value_states = torch.split(k_pass_proj, [self.qk_nope_head_dim, self.v_head_dim], dim=-1)
+
+        # ====================================================
+        # 3. APPLY ROPE STRICTLY TO TEXT TOKENS
+        # ====================================================
         k_rot = k_rot.view(batch_size, 1, seq_length, self.qk_rope_head_dim)
 
         cos, sin = position_embeddings
         q_rot, k_rot = apply_rotary_pos_emb_interleave(q_rot, k_rot, cos, sin)
-        k_rot = k_rot.expand(*k_pass.shape[:-1], -1)
+
+        # ====================================================
+        # 4. ZERO-ROPE PADDING FOR MEMORY
+        # ====================================================
+        if memory_P is not None:
+            # Pad the spatial k_rot dimension with absolute zeros!
+            zero_rot = torch.zeros(batch_size, 1, S, self.qk_rope_head_dim, 
+                                   device=k_rot.device, dtype=k_rot.dtype)
+            k_rot_combined = torch.cat([zero_rot, k_rot], dim=2)
+        else:
+            k_rot_combined = k_rot
+
+        k_rot_combined = k_rot_combined.expand(*k_nope.shape[:-1], -1)
 
         query_states = torch.cat((q_pass, q_rot), dim=-1)
-        key_states = torch.cat((k_pass, k_rot), dim=-1)
+        key_states = torch.cat((k_nope, k_rot_combined), dim=-1)
 
         if past_key_value is not None:
             # sin and cos are specific to RoPE models; cache_position needed for the static cache
@@ -122,6 +155,12 @@ class MLAAttention(nn.Module):
 
         if self.config._attn_implementation == "flash_attention_2" and self.qk_head_dim != self.v_head_dim:
             value_states = F.pad(value_states, [0, self.qk_head_dim - self.v_head_dim])
+
+        if memory_P is not None and attention_mask is not None:
+            # Pad the mask to allow queries to attend to the S memory prefix slots.
+            # (Assuming additive mask: 0.0 means 'attend', large negative means 'ignore')
+            memory_mask = attention_mask.new_zeros((batch_size, 1, seq_length, S))
+            attention_mask = torch.cat([memory_mask, attention_mask], dim=-1)
 
         attention_interface = eager_attention_forward
         if self.config._attn_implementation != "eager":

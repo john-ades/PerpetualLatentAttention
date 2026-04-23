@@ -1,0 +1,47 @@
+import torch
+import torch.nn as nn
+import math
+
+class M6LatentAdapter(nn.Module):
+    def __init__(self, kv_lora_rank, S=64, top_k=8, gamma=0.95):
+        super().__init__()
+        self.S = S
+        self.top_k = top_k
+        self.gamma = gamma
+        self.kv_lora_rank = kv_lora_rank
+        
+        # P lives entirely in TransMLA's compressed latent space!
+        # Use register_buffer so ZeRO-3 doesn't partition this dynamic state tensor
+        self.register_buffer("P", torch.randn(1, S, kv_lora_rank) * 0.02)
+        
+        # Address and Candidate Projections
+        self.W_a = nn.Linear(kv_lora_rank, kv_lora_rank, bias=False)
+        self.W_u = nn.Linear(kv_lora_rank, kv_lora_rank, bias=False)
+
+    def write(self, k_pass_evicted: torch.Tensor):
+        """
+        Triggered when tokens slide out of the context window.
+        k_pass_evicted: (B, N_evicted, kv_lora_rank)
+        """
+        # 1. Compress the evicted chunk into a semantic trajectory
+        z_bar = k_pass_evicted.mean(dim=1) # (B, kv_lora_rank)
+        
+        # 2. Address the slots
+        addr_query = self.W_a(z_bar)
+        scores = torch.softmax(
+            (addr_query.unsqueeze(1) @ self.P.transpose(-2, -1)) / math.sqrt(self.kv_lora_rank),
+            dim=-1
+        ).squeeze(1) # (B, S)
+        
+        # 3. Top-k Routing (Sparse Masking)
+        _, topk_idx = scores.topk(self.top_k, dim=-1)
+        mask = torch.zeros_like(scores).scatter_(1, topk_idx, 1.0)
+        
+        # 4. Candidate Generation
+        u_t = self.W_u(z_bar)
+        mask_3d = mask.unsqueeze(-1)
+        u_3d = u_t.unsqueeze(1).expand_as(self.P)
+        
+        # 5. Gated Overwrite (Returns updated tensor)
+        P_new = (1 - mask_3d) * self.P + mask_3d * (self.gamma * self.P + (1 - self.gamma) * u_3d)
+        return P_new

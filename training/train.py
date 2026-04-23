@@ -85,6 +85,8 @@ class TrainingArguments(transformers.TrainingArguments):
     max_train_samples: Optional[int] = field(default=None, metadata={"help": "For debugging, truncate the number of training examples."})
     attn_implementation : Optional[str] = field(default="sdpa")
     seq_len: int = field(default=2048,metadata={"help": "Maximum sequence length. Sequences will be right padded (and possibly truncated)."},)
+    train_m6_adapter: bool = field(default=False, metadata={"help": "Use M6 TBPTT Trainer"})
+    freeze_backbone: bool = field(default=False, metadata={"help": "Freeze TransMLA backbone except M6 adapter"})
 
 parser = transformers.HfArgumentParser(TrainingArguments)
 training_args = parser.parse_args_into_dataclasses()[0]
@@ -148,15 +150,121 @@ else:
         batch_size=1024,
         remove_columns=train_dataset.column_names,
         num_proc=128,
-        fn_kwargs={"tokenizer": tokenizer, "seq_len": training_args.seq_len}
+        fn_kwargs={"tokenizer": tokenizer, "seq_len": training_args.seq_len * 2} # Double size for chunks!
     )
 
-trainer = transformers.Trainer(
-    args=training_args,
-    model=model,
-    train_dataset=processed_dataset,
-    data_collator=DataCollatorWithFlattening(max_len=training_args.seq_len, pad_token_id=tokenizer.pad_token_id, return_position_ids=False)
-)
+from transmla.m6_adapter import M6LatentAdapter
+
+if training_args.train_m6_adapter:
+    # Initialize M.6 Adapter
+    kv_lora_rank = getattr(model.config, "kv_lora_rank", 512)
+    model.memory_adapter = M6LatentAdapter(kv_lora_rank).to(model.dtype).to(model.device)
+
+    # Freeze TransMLA backbone conditionally
+    if training_args.freeze_backbone:
+        for name, param in model.named_parameters():
+            if "memory_adapter" not in name:
+                param.requires_grad = False
+            else:
+                param.requires_grad = True
+
+class M6TBPTTTrainer(transformers.Trainer):
+    def __init__(self, tbptt_chunks=2, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tbptt_chunks = tbptt_chunks
+
+    def training_step(self, model, inputs, num_items_in_batch=None):
+        model.train()
+        inputs = self._prepare_inputs(inputs)
+        
+        # Split inputs according to chunks (e.g. 2 chunks)
+        chunk_size = inputs["input_ids"].size(1) // self.tbptt_chunks
+        
+        P_state = None
+        total_loss = 0
+        
+        for i in range(self.tbptt_chunks):
+            # 1. Extract Chunk
+            chunk_inputs = {
+                k: v[:, i * chunk_size : (i + 1) * chunk_size].contiguous() if v.dim() > 1 else v
+                for k, v in inputs.items()
+            }
+            
+            # VRAM Staircase Test Block 1
+            if i == 0 and self.state.global_step < 10:
+                print(f"Step {self.state.global_step} Chunk 1 memory allocated: {torch.cuda.memory_allocated() / 1e9:.3f} GB")
+                
+            # 2. Add hook to capture k_pass of the first layer
+            captured_k_pass = []
+            def hook(module, inp, out):
+                if isinstance(out, tuple): out = out[0]
+                k_pass = out[..., :model.memory_adapter.kv_lora_rank]
+                captured_k_pass.append(k_pass)
+                
+            handle = model.model.layers[0].self_attn.kv_a_proj_with_mqa.register_forward_hook(hook)
+            
+            # 3. Forward Pass & Loss Computation
+            if P_state is not None:
+                chunk_inputs["memory_latents"] = P_state
+                
+            loss = self.compute_loss(model, chunk_inputs, return_outputs=False)
+            
+            # 4. Backpropagate the Chunk
+            total_loss += loss.detach() / self.tbptt_chunks
+            
+            if self.use_amp:
+                self.scaler.scale(loss).backward()
+            else:
+                self.accelerator.backward(loss)
+                
+            handle.remove()
+            
+            # VRAM Staircase Test Block 2
+            if i == 1 and self.state.global_step < 10:
+                print(f"Step {self.state.global_step} Chunk 2 memory allocated: {torch.cuda.memory_allocated() / 1e9:.3f} GB")
+                # Gradients test
+                if hasattr(model.memory_adapter.W_a, "weight") and model.memory_adapter.W_a.weight.grad is not None:
+                    print(f"W_a grad norm: {model.memory_adapter.W_a.weight.grad.norm().item()}")
+                q_proj = None
+                for name, module in model.named_modules():
+                    if "q_proj" in name or "q_a_proj" in name:
+                        q_proj = module
+                        break
+                if q_proj is not None and hasattr(q_proj, "weight") and q_proj.weight.grad is not None:
+                    print(f"WARNING: q_proj grad is NOT None! Backbone is leaking gradients!")
+                else:
+                    print(f"Backbone securely frozen (q_proj grad is None)")
+            
+            # 5. Eviction Trigger
+            # Sever the computational graph for TransMLA backbone 
+            k_pass_evicted = captured_k_pass[0].detach() 
+            
+            # Update Memory Bank
+            P_new = model.memory_adapter.write(k_pass_evicted)
+            
+            # Sever the graph of P to prevent OOM across chunks
+            P_state = P_new.detach() 
+            # In-place update registered buffer safely for ZeRO-3
+            model.memory_adapter.P.copy_(P_state)
+            
+        return total_loss
+
+if training_args.train_m6_adapter:
+    trainer = M6TBPTTTrainer(
+        tbptt_chunks=2,
+        args=training_args,
+        model=model,
+        train_dataset=processed_dataset,
+        data_collator=DataCollatorWithFlattening(max_len=training_args.seq_len * 2, pad_token_id=tokenizer.pad_token_id, return_position_ids=False)
+    )
+else:
+    trainer = transformers.Trainer(
+        args=training_args,
+        model=model,
+        train_dataset=processed_dataset,
+        data_collator=DataCollatorWithFlattening(max_len=training_args.seq_len, pad_token_id=tokenizer.pad_token_id, return_position_ids=False)
+    )
+
 trainer.train()
 trainer.save_state()
 trainer.save_model(output_dir=training_args.output_dir)

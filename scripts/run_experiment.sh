@@ -85,16 +85,40 @@ uv run accelerate launch \
     --logging_steps 10 \
     --lr_scheduler_type "cosine" \
     --report_to "wandb" \
-    --max_steps 2000 
+    --max_steps 10 
 
 # ==============================================================================
-# Step 3: Evaluation
+# Step 3: Train M.6 Persistent Memory Adapter (TBPTT)
 # ==============================================================================
-echo -e "\n[3/3] Evaluating the healed MLA model..."
+echo -e "\n[3/4] Freezing TransMLA Backbone and Training M.6 Adapter..."
+MEMORY_ADAPTER_PATH="outputs/llama3.1-8B-mla-m6"
 
-uv run python scripts/eval_healed.py "$FINETUNED_PATH"
+# Pass the FINETUNED_PATH (healed model) as the base model
+uv run accelerate launch \
+    --config_file training/zero3.yaml \
+    training/train.py \
+    --model_name_or_path "$FINETUNED_PATH" \
+    --output_dir "$MEMORY_ADAPTER_PATH" \
+    --data_path "$DATASET" \
+    --dataset_name "sample-10BT" \
+    --train_m6_adapter True \
+    --freeze_backbone True \
+    --bf16 \
+    --num_train_epochs 1 \
+    --seq_len 2048 \
+    --per_device_train_batch_size 1 \
+    --gradient_accumulation_steps 2 \
+    --learning_rate 1e-4 \
+    --max_steps 10
+
+# ==============================================================================
+# Step 4: Evaluation (Streaming PPL)
+# ==============================================================================
+echo -e "\n[4/4] Evaluating the M.6 persistent memory model setup..."
+
+uv run python scripts/eval_memory.py "$MEMORY_ADAPTER_PATH"
 
 echo "====================================================================="
 echo "✅ Pipeline Completed Successfully!"
-echo "Transformed & Healed MLA Model saved at: $FINETUNED_PATH"
+echo "Transformed, Healed, and Memorized MLA Model saved at: $MEMORY_ADAPTER_PATH"
 echo "====================================================================="
