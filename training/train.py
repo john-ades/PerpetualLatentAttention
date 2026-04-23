@@ -234,10 +234,16 @@ class M6TBPTTTrainer(transformers.Trainer):
                 
             loss = self.compute_loss(model, chunk_inputs, return_outputs=False)
             
-            # 4. Backpropagate the Chunk
-            total_loss += loss.detach() / self.tbptt_chunks
+            # Enforce a strict 0-D scalar tensor to satisfy DeepSpeed's engine
+            loss = loss.mean()
             
-            self.accelerator.backward(loss)
+            # Scale the loss manually for the custom TBPTT chunks
+            scaled_loss = loss / self.tbptt_chunks
+            
+            # 4. Backpropagate the Chunk
+            total_loss += scaled_loss.detach()
+            
+            self.accelerator.backward(scaled_loss)
                 
             handle.remove()
             

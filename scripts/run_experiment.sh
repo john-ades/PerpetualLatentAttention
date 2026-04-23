@@ -38,7 +38,7 @@ echo "====================================================================="
 # ==============================================================================
 # Step 1: Extract Activations & Convert Model to MLA
 # ==============================================================================
-echo -e "\n[1/3] Extracting activations on wikitext-2 & Converting Model to MLA..."
+echo -e "\n[1/4] Extracting activations on wikitext-2 & Converting Model to MLA..."
 
 # We use --freqfold 4 as defined in your scripts/llama3.2-1B.sh. 
 # This calibration step is mapped to a single GPU (cuda:0).
@@ -54,7 +54,7 @@ uv run python transmla/converter.py \
 # ==============================================================================
 # Step 2: Finetune / Heal Model
 # ==============================================================================
-echo -e "\n[2/3] Healing model on $DATASET using DeepSpeed & Accelerate..."
+echo -e "\n[2/4] Healing model on $DATASET using DeepSpeed & Accelerate..."
 
 # fineweb-edu is a massive 1.3TB dataset. We pass 'sample-10BT' subset and 
 # max_train_samples below to avoid multi-hour downloads and disk quota exceeded issues.
