@@ -97,7 +97,7 @@ model = transformers.AutoModelForCausalLM.from_pretrained(
     attn_implementation=training_args.attn_implementation, 
     trust_remote_code=True,
 )
-tokenizer = transformers.AutoTokenizer.from_pretrained(training_args.model_name_or_path, fix_mistral_regex=True)
+tokenizer = transformers.AutoTokenizer.from_pretrained(training_args.model_name_or_path, fix_mistral_regex=True, trust_remote_code=True)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.pad_token_id = tokenizer.eos_token_id
