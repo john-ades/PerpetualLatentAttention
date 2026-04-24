@@ -241,6 +241,7 @@ class M6TBPTTTrainer(transformers.Trainer):
             # 3. Forward Pass & Loss Computation
             if P_state is not None:
                 chunk_inputs["memory_latents"] = model.memory_adapter.read(P_state)
+                chunk_inputs["memory_gate"] = model.memory_adapter.memory_gate
                 
             loss = self.compute_loss(model, chunk_inputs, return_outputs=False)
             

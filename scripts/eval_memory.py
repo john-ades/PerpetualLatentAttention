@@ -135,6 +135,11 @@ def main():
         handle.remove()
         
         k_pass_evicted = captured_k_pass[0].detach()
+        
+        # ✅ FIX: Reset the global memory buffer for a fresh document evaluation!
+        # Otherwise we evaluate using the trained state from the end of the training dataset.
+        model.memory_adapter.P.data.normal_(mean=0.0, std=0.02)
+        
         # Create P_1
         P_1 = model.memory_adapter.write(k_pass_evicted)
         
@@ -142,7 +147,13 @@ def main():
         memory_latents_1 = model.memory_adapter.read(P_1)
         
         # Run Chunk 2 WITH memory injected
-        outputs_mem_2 = model(input_ids=chunk_2_ids, attention_mask=attention_mask_2, use_cache=False, memory_latents=memory_latents_1)
+        outputs_mem_2 = model(
+            input_ids=chunk_2_ids, 
+            attention_mask=attention_mask_2, 
+            use_cache=False, 
+            memory_latents=memory_latents_1,
+            memory_gate=model.memory_adapter.memory_gate
+        )
         shift_logits_mem_2 = outputs_mem_2.logits[:, :-1, :].contiguous()
         loss_mem_2 = loss_function(shift_logits_mem_2.view(-1, shift_logits_mem_2.size(-1)), shift_labels_2.view(-1))
         ppl_mem_2 = math.exp(loss_mem_2.item())

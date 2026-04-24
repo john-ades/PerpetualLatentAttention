@@ -25,10 +25,17 @@ class M6LatentAdapter(nn.Module):
             for _ in range(num_hidden_layers)
         ])
         
-        # ✅ FIX: Initialize to Zeros for strict safe-startup 
-        # (Identity is catastrophic here because each layer has an independent PCA basis!)
+        # ✅ FIX: Initialize to small random weights so gradients can flow to W_a!
+        # (Zeros completely severs the gradient flow because dL/dX = dL/dY @ W_read = 0)
         for proj in self.W_read:
-            nn.init.zeros_(proj.weight)
+            nn.init.normal_(proj.weight, std=0.02)
+            
+        # ✅ CRITICAL FIX: Safe Startup Attention Gate
+        # Memory slots initialized to small values are blown up by RMSNorm to variance 1.0.
+        # If not masked, they create massive attention sinks (e^0 = 1).
+        # We start the mask bias at -10.0 so memory is safely ignored at startup,
+        # and the model slowly learns to increase this gate as the memory becomes useful!
+        self.memory_gate = nn.Parameter(torch.tensor(-10.0))
 
     def write(self, k_pass_evicted: torch.Tensor, P_curr: torch.Tensor = None):
         """

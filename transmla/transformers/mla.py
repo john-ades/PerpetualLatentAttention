@@ -169,8 +169,12 @@ class MLAAttention(nn.Module):
 
         if memory_P is not None and attention_mask is not None:
             # Pad the mask to allow queries to attend to the S memory prefix slots.
-            # (Assuming additive mask: 0.0 means 'attend', large negative means 'ignore')
-            memory_mask = attention_mask.new_zeros((batch_size, 1, seq_length, S))
+            # We add memory_gate to allow safe-startup masking that learns over time.
+            memory_gate = kwargs.get("memory_gate", 0.0)
+            if isinstance(memory_gate, torch.Tensor):
+                memory_gate = memory_gate.to(attention_mask.dtype)
+                
+            memory_mask = attention_mask.new_zeros((batch_size, 1, seq_length, S)) + memory_gate
             attention_mask = torch.cat([memory_mask, attention_mask], dim=-1)
 
         attention_interface = eager_attention_forward
