@@ -117,21 +117,29 @@ class MLAAttention(nn.Module):
                 memory_P = memory_P.expand(batch_size, -1, -1)
                 
             S = memory_P.shape[1]
-            k_pass_combined = torch.cat([memory_P, k_pass], dim=1)
         else:
             memory_P = None
             S = 0
-            k_pass_combined = k_pass
 
         key_shape = (batch_size, seq_length + S, -1, self.qk_nope_head_dim + self.v_head_dim)
 
         # ====================================================
         # 2. LET TRANSMLA UNPACK MEMORY NATURALLY
         # ====================================================
+        # ✅ CRITICAL FIX: RMSNorm Blowup Prevention
+        # Normalize the text tokens FIRST, and then inject the memory slots.
+        # This allows memory_P to retain its safe near-zero initialization magnitude!
         if self.qk_latent_layernorm:
-            k_pass_proj = self.kv_b_proj(self.kv_a_layernorm(k_pass_combined)).view(key_shape).transpose(1, 2)
+            normed_k_pass = self.kv_a_layernorm(k_pass)
         else:
-            k_pass_proj = self.kv_b_proj(k_pass_combined).view(key_shape).transpose(1, 2)
+            normed_k_pass = k_pass
+            
+        if memory_P is not None:
+            k_pass_combined = torch.cat([memory_P, normed_k_pass], dim=1)
+        else:
+            k_pass_combined = normed_k_pass
+            
+        k_pass_proj = self.kv_b_proj(k_pass_combined).view(key_shape).transpose(1, 2)
         
         k_nope, value_states = torch.split(k_pass_proj, [self.qk_nope_head_dim, self.v_head_dim], dim=-1)
 
