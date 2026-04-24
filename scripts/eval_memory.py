@@ -28,7 +28,6 @@ def main():
         tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
     except ValueError:
         import json
-        import os
         config_path = os.path.join(model_path, "config.json")
         if not os.path.exists(config_path):
             raise ValueError(f"Could not find tokenizer files or config.json in {model_path}")
