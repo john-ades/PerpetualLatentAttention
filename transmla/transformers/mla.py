@@ -167,13 +167,37 @@ class MLAAttention(nn.Module):
         if self.config._attn_implementation == "flash_attention_2" and self.qk_head_dim != self.v_head_dim:
             value_states = F.pad(value_states, [0, self.qk_head_dim - self.v_head_dim])
 
-        if memory_P is not None and attention_mask is not None:
-            # Pad the mask to allow queries to attend to the S memory prefix slots.
-            # We add memory_gate to allow safe-startup masking that learns over time.
+        # ====================================================
+        # 5. GUARANTEED SAFE-STARTUP GATE MASKING
+        # ====================================================
+        if memory_P is not None:
             memory_gate = kwargs.get("memory_gate", 0.0)
             if isinstance(memory_gate, torch.Tensor):
-                memory_gate = memory_gate.to(attention_mask.dtype)
+                memory_gate = memory_gate.to(query_states.dtype)
+            else:
+                memory_gate = torch.tensor(memory_gate, dtype=query_states.dtype, device=query_states.device)
                 
+            # --- CRITICAL FIX ---
+            # If HF optimized away the attention mask for SDPA, we MUST build a causal mask.
+            # Otherwise, SDPA's is_causal=True handles text tokens but completely ignores our memory_gate!
+            if attention_mask is None:
+                past_len = key_states.shape[2] - seq_length - S
+                attention_mask = torch.zeros(
+                    (batch_size, 1, seq_length, seq_length + past_len), 
+                    device=query_states.device, 
+                    dtype=query_states.dtype
+                )
+                if seq_length > 1:
+                    causal_mask = torch.full(
+                        (seq_length, seq_length), 
+                        torch.finfo(query_states.dtype).min, 
+                        device=query_states.device, 
+                        dtype=query_states.dtype
+                    )
+                    causal_mask.triu_(diagonal=1)
+                    attention_mask[..., :, past_len:] = causal_mask
+                    
+            # Safely prepend the S memory slots with the learned memory_gate penalty
             memory_mask = attention_mask.new_zeros((batch_size, 1, seq_length, S)) + memory_gate
             attention_mask = torch.cat([memory_mask, attention_mask], dim=-1)
 

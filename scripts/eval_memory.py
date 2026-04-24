@@ -136,9 +136,8 @@ def main():
         
         k_pass_evicted = captured_k_pass[0].detach()
         
-        # ✅ FIX: Reset the global memory buffer for a fresh document evaluation!
-        # Otherwise we evaluate using the trained state from the end of the training dataset.
-        model.memory_adapter.P.data.normal_(mean=0.0, std=0.02)
+        # ❌ REMOVE THIS: P is a persistent global bank, do not wipe it!
+        # model.memory_adapter.P.data.normal_(mean=0.0, std=0.02)
         
         # Create P_1
         P_1 = model.memory_adapter.write(k_pass_evicted)
