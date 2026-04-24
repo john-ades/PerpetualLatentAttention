@@ -72,6 +72,7 @@ sed -i.bak "s/num_processes: .*/num_processes: $NUM_GPUS/g" training/zero3.yaml
 # --max_steps 500 is used here to ensure a quick sanity check of the pipeline.
 # Remove it when you want to run the full training loop.
 export WANDB_PROJECT="perpetual-latent-attention"
+export WANDB_RUN_GROUP="pla_pipeline_$(date +%s)"
 uv run accelerate launch \
     --config_file training/zero3.yaml \
     training/train.py \
@@ -91,6 +92,7 @@ uv run accelerate launch \
     --logging_steps 10 \
     --lr_scheduler_type "cosine" \
     --report_to "wandb" \
+    --run_name "healing" \
     --max_steps 10 
 
 # ==============================================================================
@@ -115,6 +117,8 @@ uv run accelerate launch \
     --per_device_train_batch_size 1 \
     --gradient_accumulation_steps 2 \
     --learning_rate 1e-4 \
+    --report_to "wandb" \
+    --run_name "m6_adapter_training" \
     --max_steps 10
 
 # ==============================================================================

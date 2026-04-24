@@ -1,6 +1,8 @@
 import torch
 import sys
+import os
 import math
+import wandb
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from datasets import load_dataset
 from transmla.m6_adapter import M6LatentAdapter
@@ -11,6 +13,12 @@ def main():
         sys.exit(1)
         
     model_path = sys.argv[1]
+    
+    wandb.init(
+        project=os.environ.get("WANDB_PROJECT", "perpetual-latent-attention"),
+        job_type="evaluation",
+        name="evaluation"
+    )
     
     print(f"Loading tokenizer and model from {model_path}...")
     try:
@@ -118,6 +126,14 @@ def main():
 
     print("\n--- Summary ---")
     print(f"Memory improved PPL on Chunk 2 from {ppl_base_2:.2f} to {ppl_mem_2:.2f}")
+
+    if wandb.run is not None:
+        wandb.log({
+            "eval/chunk_1_ppl": ppl_1,
+            "eval/chunk_2_base_ppl": ppl_base_2,
+            "eval/chunk_2_mem_ppl": ppl_mem_2
+        })
+        wandb.finish()
 
 if __name__ == "__main__":
     main()
