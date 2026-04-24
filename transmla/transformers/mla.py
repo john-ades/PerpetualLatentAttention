@@ -135,6 +135,9 @@ class MLAAttention(nn.Module):
             normed_k_pass = k_pass
             
         if memory_P is not None:
+            # ✅ FIX: Normalize memory slots to prevent logit explosion
+            if self.qk_latent_layernorm:
+                memory_P = self.kv_a_layernorm(memory_P)
             k_pass_combined = torch.cat([memory_P, normed_k_pass], dim=1)
         else:
             k_pass_combined = normed_k_pass

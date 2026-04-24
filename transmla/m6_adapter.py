@@ -30,9 +30,8 @@ class M6LatentAdapter(nn.Module):
         for proj in self.W_read:
             nn.init.normal_(proj.weight, std=0.02)
             
-        # ✅ CRITICAL FIX: Safe Startup Attention Gate
-# -3.0 suppresses the slots (~0.05 softmax weight) but keeps the gradient alive
-        self.memory_gate = nn.Parameter(torch.tensor(-3.0))
+        # ✅ FIX: -15.0 ensures the 64 slots command < 0.001% attention mass at startup
+        self.memory_gate = nn.Parameter(torch.tensor(-15.0))
 
     def write(self, k_pass_evicted: torch.Tensor, P_curr: torch.Tensor = None):
         """

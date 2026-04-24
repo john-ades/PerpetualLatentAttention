@@ -93,6 +93,9 @@ def main():
     chunk_1_ids = input_ids[:, :2048]
     chunk_2_ids = input_ids[:, 2048:4096]
     
+    chunk_1_position_ids = torch.arange(0, 2048, dtype=torch.long, device=model.device).unsqueeze(0)
+    chunk_2_position_ids = torch.arange(2048, 4096, dtype=torch.long, device=model.device).unsqueeze(0)
+    
     print("--- Running Baseline (No Memory) ---")
     
     with torch.no_grad():
@@ -101,7 +104,7 @@ def main():
         
         # We need attention mask
         attention_mask_1 = torch.ones_like(chunk_1_ids)
-        outputs_1 = model(input_ids=chunk_1_ids, attention_mask=attention_mask_1, use_cache=False)
+        outputs_1 = model(input_ids=chunk_1_ids, attention_mask=attention_mask_1, position_ids=chunk_1_position_ids, use_cache=False)
         shift_logits_1 = outputs_1.logits[:, :-1, :].contiguous()
         shift_labels_1 = chunk_1_ids[:, 1:].contiguous()
         loss_1 = loss_function(shift_logits_1.view(-1, shift_logits_1.size(-1)), shift_labels_1.view(-1))
@@ -110,7 +113,7 @@ def main():
 
         # Baseline Chunk 2 (Stateless)
         attention_mask_2 = torch.ones_like(chunk_2_ids)
-        outputs_base_2 = model(input_ids=chunk_2_ids, attention_mask=attention_mask_2, use_cache=False)
+        outputs_base_2 = model(input_ids=chunk_2_ids, attention_mask=attention_mask_2, position_ids=chunk_2_position_ids, use_cache=False)
         shift_logits_base_2 = outputs_base_2.logits[:, :-1, :].contiguous()
         shift_labels_2 = chunk_2_ids[:, 1:].contiguous()
         loss_base_2 = loss_function(shift_logits_base_2.view(-1, shift_logits_base_2.size(-1)), shift_labels_2.view(-1))
@@ -149,6 +152,7 @@ def main():
         outputs_mem_2 = model(
             input_ids=chunk_2_ids, 
             attention_mask=attention_mask_2, 
+            position_ids=chunk_2_position_ids,
             use_cache=False, 
             memory_latents=memory_latents_1,
             memory_gate=memory_gate_1

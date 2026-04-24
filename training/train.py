@@ -306,6 +306,9 @@ class M6TBPTTTrainer(transformers.Trainer):
             
         model.memory_adapter.P.copy_(P_mean)
             
+        # ✅ FIX: Return the scaled loss for the Hugging Face logger
+        if self.args.gradient_accumulation_steps > 1:
+            return total_loss / self.args.gradient_accumulation_steps
         return total_loss
 
 if training_args.train_m6_adapter:
@@ -315,7 +318,7 @@ if training_args.train_m6_adapter:
         model=model,
         processing_class=tokenizer,
         train_dataset=processed_dataset,
-        data_collator=DataCollatorWithFlattening(max_len=training_args.seq_len * 2, pad_token_id=tokenizer.pad_token_id, return_position_ids=False)
+        data_collator=DataCollatorWithFlattening(max_len=training_args.seq_len * 2, pad_token_id=tokenizer.pad_token_id, return_position_ids=True)
     )
 else:
     trainer = transformers.Trainer(
