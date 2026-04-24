@@ -30,14 +30,18 @@ class M6LatentAdapter(nn.Module):
         for proj in self.W_read:
             nn.init.zeros_(proj.weight)
 
-    def write(self, k_pass_evicted: torch.Tensor):
+    def write(self, k_pass_evicted: torch.Tensor, P_curr: torch.Tensor = None):
         """
         Triggered when tokens slide out of the context window.
         k_pass_evicted: (B, N_evicted, kv_lora_rank)
         """
         B = k_pass_evicted.shape[0]
+        
+        if P_curr is None:
+            P_curr = self.P
+            
         # FIX: Dynamically match the batch size of the incoming evicted tokens
-        P_batch = self.P.expand(B, -1, -1)
+        P_batch = P_curr.expand(B, -1, -1)
         
         # 1. Compress the evicted chunk into a semantic trajectory
         z_bar = k_pass_evicted.mean(dim=1) # (B, kv_lora_rank)

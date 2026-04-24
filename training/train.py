@@ -279,12 +279,14 @@ class M6TBPTTTrainer(transformers.Trainer):
             k_pass_evicted = captured_k_pass[0].detach() 
             
             # Update Memory Bank
-            P_new = model.memory_adapter.write(k_pass_evicted)
+            P_new = model.memory_adapter.write(k_pass_evicted, P_curr=P_state)
             
             # Keep graph of P for TBPTT gradient flow to previous chunk
             P_state = P_new 
-            # In-place update registered buffer safely for ZeRO-3 (average across batch dimension)
-            model.memory_adapter.P.copy_(P_state.detach().mean(dim=0, keepdim=True))
+            
+        # In-place update registered buffer safely for ZeRO-3 (average across batch dimension)
+        # We do this OUTSIDE the loop so it doesn't break PyTorch's backward graph for previous chunks!
+        model.memory_adapter.P.copy_(P_state.detach().mean(dim=0, keepdim=True))
             
         return total_loss
 
