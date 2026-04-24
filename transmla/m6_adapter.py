@@ -25,9 +25,10 @@ class M6LatentAdapter(nn.Module):
             for _ in range(num_hidden_layers)
         ])
         
-        # Initialize as identity mappings for safe startup
+        # ✅ FIX: Initialize to Zeros for strict safe-startup 
+        # (Identity is catastrophic here because each layer has an independent PCA basis!)
         for proj in self.W_read:
-            nn.init.eye_(proj.weight)
+            nn.init.zeros_(proj.weight)
 
     def write(self, k_pass_evicted: torch.Tensor):
         """
@@ -51,6 +52,10 @@ class M6LatentAdapter(nn.Module):
         # 3. Top-k Routing (Sparse Masking)
         _, topk_idx = scores.topk(self.top_k, dim=-1)
         mask = torch.zeros_like(scores).scatter_(1, topk_idx, 1.0)
+        
+        # ✅ CRITICAL FIX: Straight-Through Estimator (STE)
+        # Allows gradients to bypass the non-differentiable scatter_ and train W_a
+        mask = mask.detach() - scores.detach() + scores
         
         # 4. Candidate Generation
         u_t = self.W_u(z_bar)
