@@ -54,7 +54,22 @@ def main():
 
     # Load Adapter
     kv_lora_rank = getattr(model.config, "kv_lora_rank", 512)
-    model.memory_adapter = M6LatentAdapter(kv_lora_rank).to(model.dtype).to(model.device)
+    num_hidden_layers = getattr(model.config, "num_hidden_layers", 32)
+    model.memory_adapter = M6LatentAdapter(kv_lora_rank, num_hidden_layers=num_hidden_layers).to(model.dtype).to(model.device)
+
+    # --- CRITICAL FIX: Recover weights discarded by HuggingFace initialization ---
+    from safetensors.torch import load_file
+    import glob
+    st_files = glob.glob(os.path.join(model_path, "*.safetensors"))
+    if st_files:
+        sd = load_file(st_files[0])
+        # Strip prefix to match the local module keys
+        adapter_sd = {k.replace("memory_adapter.", ""): v for k, v in sd.items() if "memory_adapter" in k}
+        if adapter_sd:
+            model.memory_adapter.load_state_dict(adapter_sd, strict=False)
+            print("✅ Successfully loaded trained M.6 Adapter weights!")
+        else:
+            print("⚠️ WARNING: No adapter weights found in safetensors.")
     
     print("Loading test dataset for Streaming PPL test...")
     # Load a long document text
@@ -118,8 +133,11 @@ def main():
         # Create P_1
         P_1 = model.memory_adapter.write(k_pass_evicted)
         
+        # FIX: Map P_1 into layer-specific coordinates
+        memory_latents_1 = model.memory_adapter.read(P_1)
+        
         # Run Chunk 2 WITH memory injected
-        outputs_mem_2 = model(input_ids=chunk_2_ids, attention_mask=attention_mask_2, use_cache=False, memory_latents=P_1)
+        outputs_mem_2 = model(input_ids=chunk_2_ids, attention_mask=attention_mask_2, use_cache=False, memory_latents=memory_latents_1)
         shift_logits_mem_2 = outputs_mem_2.logits[:, :-1, :].contiguous()
         loss_mem_2 = loss_function(shift_logits_mem_2.view(-1, shift_logits_mem_2.size(-1)), shift_labels_2.view(-1))
         ppl_mem_2 = math.exp(loss_mem_2.item())

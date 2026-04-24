@@ -103,13 +103,24 @@ class MLAAttention(nn.Module):
         # ====================================================
         # 1. INJECT M.6 LATENT MEMORY (READ PATH)
         # ====================================================
-        memory_P = kwargs.get("memory_latents", None) # shape: (B, S, kv_lora_rank)
-        S = memory_P.shape[1] if memory_P is not None else 0
+        memory_latents = kwargs.get("memory_latents", None) 
         
-        if memory_P is not None:
-            # Prepend memory slots to the latent NoPE vector
+        if memory_latents is not None:
+            # FIX: Grab the memory specifically projected for this layer's PCA basis
+            if isinstance(memory_latents, (list, tuple)):
+                memory_P = memory_latents[self.layer_idx]
+            else:
+                memory_P = memory_latents
+            
+            # Ensure batch dimension matches dynamically
+            if memory_P.shape[0] != batch_size:
+                memory_P = memory_P.expand(batch_size, -1, -1)
+                
+            S = memory_P.shape[1]
             k_pass_combined = torch.cat([memory_P, k_pass], dim=1)
         else:
+            memory_P = None
+            S = 0
             k_pass_combined = k_pass
 
         key_shape = (batch_size, seq_length + S, -1, self.qk_nope_head_dim + self.v_head_dim)

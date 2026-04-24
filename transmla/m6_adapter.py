@@ -3,7 +3,7 @@ import torch.nn as nn
 import math
 
 class M6LatentAdapter(nn.Module):
-    def __init__(self, kv_lora_rank, S=64, top_k=8, gamma=0.95):
+    def __init__(self, kv_lora_rank, num_hidden_layers=32, S=64, top_k=8, gamma=0.95):
         super().__init__()
         self.S = S
         self.top_k = top_k
@@ -18,18 +18,33 @@ class M6LatentAdapter(nn.Module):
         self.W_a = nn.Linear(kv_lora_rank, kv_lora_rank, bias=False)
         self.W_u = nn.Linear(kv_lora_rank, kv_lora_rank, bias=False)
 
+        # NEW: M.6 Layer-Specific Read Projections
+        # These learn to map the global memory P into the specific orthogonal PCA basis of each layer
+        self.W_read = nn.ModuleList([
+            nn.Linear(kv_lora_rank, kv_lora_rank, bias=False) 
+            for _ in range(num_hidden_layers)
+        ])
+        
+        # Initialize as identity mappings for safe startup
+        for proj in self.W_read:
+            nn.init.eye_(proj.weight)
+
     def write(self, k_pass_evicted: torch.Tensor):
         """
         Triggered when tokens slide out of the context window.
         k_pass_evicted: (B, N_evicted, kv_lora_rank)
         """
+        B = k_pass_evicted.shape[0]
+        # FIX: Dynamically match the batch size of the incoming evicted tokens
+        P_batch = self.P.expand(B, -1, -1)
+        
         # 1. Compress the evicted chunk into a semantic trajectory
         z_bar = k_pass_evicted.mean(dim=1) # (B, kv_lora_rank)
         
         # 2. Address the slots
         addr_query = self.W_a(z_bar)
         scores = torch.softmax(
-            (addr_query.unsqueeze(1) @ self.P.transpose(-2, -1)) / math.sqrt(self.kv_lora_rank),
+            (addr_query.unsqueeze(1) @ P_batch.transpose(-2, -1)) / math.sqrt(self.kv_lora_rank),
             dim=-1
         ).squeeze(1) # (B, S)
         
@@ -40,8 +55,12 @@ class M6LatentAdapter(nn.Module):
         # 4. Candidate Generation
         u_t = self.W_u(z_bar)
         mask_3d = mask.unsqueeze(-1)
-        u_3d = u_t.unsqueeze(1).expand_as(self.P)
+        u_3d = u_t.unsqueeze(1).expand_as(P_batch)
         
         # 5. Gated Overwrite (Returns updated tensor)
-        P_new = (1 - mask_3d) * self.P + mask_3d * (self.gamma * self.P + (1 - self.gamma) * u_3d)
+        P_new = (1 - mask_3d) * P_batch + mask_3d * (self.gamma * P_batch + (1 - self.gamma) * u_3d)
         return P_new
+
+    def read(self, P_state: torch.Tensor):
+        """Projects the global memory bank into layer-specific PCA latent bases."""
+        return [proj(P_state) for proj in self.W_read]

@@ -183,7 +183,8 @@ from transmla.m6_adapter import M6LatentAdapter
 if training_args.train_m6_adapter:
     # Initialize M.6 Adapter
     kv_lora_rank = getattr(model.config, "kv_lora_rank", 512)
-    model.memory_adapter = M6LatentAdapter(kv_lora_rank).to(model.dtype).to(model.device)
+    num_hidden_layers = getattr(model.config, "num_hidden_layers", 32)
+    model.memory_adapter = M6LatentAdapter(kv_lora_rank, num_hidden_layers=num_hidden_layers).to(model.dtype).to(model.device)
 
     # Freeze TransMLA backbone conditionally
     if training_args.freeze_backbone:
@@ -236,7 +237,7 @@ class M6TBPTTTrainer(transformers.Trainer):
             
             # 3. Forward Pass & Loss Computation
             if P_state is not None:
-                chunk_inputs["memory_latents"] = P_state
+                chunk_inputs["memory_latents"] = model.memory_adapter.read(P_state)
                 
             loss = self.compute_loss(model, chunk_inputs, return_outputs=False)
             
@@ -279,8 +280,8 @@ class M6TBPTTTrainer(transformers.Trainer):
             
             # Keep graph of P for TBPTT gradient flow to previous chunk
             P_state = P_new 
-            # In-place update registered buffer safely for ZeRO-3
-            model.memory_adapter.P.copy_(P_state.detach())
+            # In-place update registered buffer safely for ZeRO-3 (average across batch dimension)
+            model.memory_adapter.P.copy_(P_state.detach().mean(dim=0, keepdim=True))
             
         return total_loss
 
