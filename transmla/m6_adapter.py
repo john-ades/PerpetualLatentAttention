@@ -31,10 +31,8 @@ class M6LatentAdapter(nn.Module):
             nn.init.normal_(proj.weight, std=0.02)
             
         # ✅ CRITICAL FIX: Safe Startup Attention Gate
-        # Memory slots now bypass RMSNorm and are small, but text dot-products 
-        # can frequently drop into negative values. -10.0 is not deep enough!
-        # -100.0 guarantees the memory is mathematically invisible at startup.
-        self.memory_gate = nn.Parameter(torch.tensor(-100.0))
+# -3.0 suppresses the slots (~0.05 softmax weight) but keeps the gradient alive
+        self.memory_gate = nn.Parameter(torch.tensor(-3.0))
 
     def write(self, k_pass_evicted: torch.Tensor, P_curr: torch.Tensor = None):
         """
