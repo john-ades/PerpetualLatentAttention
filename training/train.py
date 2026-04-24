@@ -154,12 +154,15 @@ if training_args.data_path == "mixed_healing":
     if training_args.max_train_samples is not None:
         train_dataset = train_dataset.take(training_args.max_train_samples)
 
+    # FIX: Calculate target length based on TBPTT chunks
+    target_seq_len = training_args.seq_len * 2 if training_args.train_m6_adapter else training_args.seq_len
+
     processed_dataset = train_dataset.map(
         preprocess_function,
         batched=True,
         batch_size=1024,
         remove_columns=["text"],
-        fn_kwargs={"tokenizer": tokenizer, "seq_len": training_args.seq_len}
+        fn_kwargs={"tokenizer": tokenizer, "seq_len": target_seq_len}
     )
 else:
     if training_args.max_train_samples is not None:

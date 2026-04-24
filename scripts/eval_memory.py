@@ -60,16 +60,21 @@ def main():
     # --- CRITICAL FIX: Recover weights discarded by HuggingFace initialization ---
     from safetensors.torch import load_file
     import glob
+    
     st_files = glob.glob(os.path.join(model_path, "*.safetensors"))
     if st_files:
-        sd = load_file(st_files[0])
-        # Strip prefix to match the local module keys
-        adapter_sd = {k.replace("memory_adapter.", ""): v for k, v in sd.items() if "memory_adapter" in k}
+        adapter_sd = {}
+        # Iterate through all shards
+        for st_file in st_files:
+            sd = load_file(st_file)
+            shard_sd = {k.replace("memory_adapter.", ""): v for k, v in sd.items() if "memory_adapter" in k}
+            adapter_sd.update(shard_sd)
+            
         if adapter_sd:
             model.memory_adapter.load_state_dict(adapter_sd, strict=False)
             print("✅ Successfully loaded trained M.6 Adapter weights!")
         else:
-            print("⚠️ WARNING: No adapter weights found in safetensors.")
+            print("⚠️ WARNING: No adapter weights found in any safetensors shards.")
     
     print("Loading test dataset for Streaming PPL test...")
     # Load a long document text
