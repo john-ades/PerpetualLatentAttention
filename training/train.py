@@ -198,6 +198,12 @@ class M6TBPTTTrainer(transformers.Trainer):
         super().__init__(*args, **kwargs)
         self.tbptt_chunks = tbptt_chunks
 
+    def create_optimizer(self):
+        super().create_optimizer()
+        if self.optimizer is not None:
+            self.optimizer.param_groups = [g for g in self.optimizer.param_groups if len(g.get("params", [])) > 0]
+        return self.optimizer
+
     def training_step(self, model, inputs, num_items_in_batch=None):
         model.train()
         inputs = self._prepare_inputs(inputs)
