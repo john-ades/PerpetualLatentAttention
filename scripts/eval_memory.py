@@ -3,6 +3,9 @@ import sys
 import os
 import math
 import wandb
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from datasets import load_dataset
 from transmla.m6_adapter import M6LatentAdapter
