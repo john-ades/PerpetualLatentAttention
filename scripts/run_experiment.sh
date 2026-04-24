@@ -15,12 +15,18 @@ trap cleanup EXIT
 # Input Validation
 # ==============================================================================
 if [ -z "$1" ]; then
-  echo "Usage: $0 <num_gpus>"
-  echo "Example: $0 4"
-  exit 1
+  if command -v nvidia-smi &> /dev/null; then
+    NUM_GPUS=$(nvidia-smi -L | wc -l | awk '{print $1}')
+  else
+    NUM_GPUS=$(uv run python -c "import torch; print(torch.cuda.device_count())" 2>/dev/null || echo 1)
+  fi
+  if [ -z "$NUM_GPUS" ] || [ "$NUM_GPUS" -eq 0 ]; then
+    NUM_GPUS=1
+  fi
+  echo "No GPU count provided. Automatically detected $NUM_GPUS GPUs."
+else
+  NUM_GPUS=$1
 fi
-
-NUM_GPUS=$1
 MODEL_NAME="meta-llama/Llama-3.1-8B"
 
 # Directories for the converted and healed models

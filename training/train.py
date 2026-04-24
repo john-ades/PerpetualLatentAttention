@@ -243,7 +243,8 @@ class M6TBPTTTrainer(transformers.Trainer):
             # 4. Backpropagate the Chunk
             total_loss += scaled_loss.detach()
             
-            self.accelerator.backward(scaled_loss)
+            if scaled_loss.requires_grad:
+                self.accelerator.backward(scaled_loss)
                 
             handle.remove()
             
@@ -270,10 +271,10 @@ class M6TBPTTTrainer(transformers.Trainer):
             # Update Memory Bank
             P_new = model.memory_adapter.write(k_pass_evicted)
             
-            # Sever the graph of P to prevent OOM across chunks
-            P_state = P_new.detach() 
+            # Keep graph of P for TBPTT gradient flow to previous chunk
+            P_state = P_new 
             # In-place update registered buffer safely for ZeRO-3
-            model.memory_adapter.P.copy_(P_state)
+            model.memory_adapter.P.copy_(P_state.detach())
             
         return total_loss
 
