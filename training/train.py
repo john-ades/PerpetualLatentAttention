@@ -54,6 +54,9 @@ class DataCollatorWithFlattening(transformers.DefaultDataCollator):
                 ret["position_ids"] += padded_position_ids
             ret["input_ids"] += [self.pad_token_id] * padding_len
             ret["labels"] += [self.label_ignore_id] * padding_len
+            if "document_ids" in ret:
+                ret["document_ids"] += [0] * padding_len
+                ret["document_ids"] = ret["document_ids"][:self.max_len]
             ret["input_ids"] = ret["input_ids"][:self.max_len]
             ret["labels"] = ret["labels"][:self.max_len]
             return ret
@@ -65,12 +68,17 @@ class DataCollatorWithFlattening(transformers.DefaultDataCollator):
 
         rets = []
         for idx in range(0, len(features)):
-            ret = {"input_ids": [], "labels": []}
+            ret = {"input_ids": [], "labels": [], "document_ids": []}
             if self.return_position_ids:
                 ret.update({"position_ids": []})
+                
+            doc_id_counter = 1
             for f_input_ids in features[idx]["input_ids"]:
                 ret["input_ids"] += f_input_ids
                 ret["labels"] += [separator_id] + f_input_ids[1:]
+                ret["document_ids"] += [doc_id_counter] * len(f_input_ids)
+                doc_id_counter += 1
+                
                 if self.return_position_ids:
                     ret["position_ids"] += list(range(len(f_input_ids)))
             rets.append(padding_ret(ret))

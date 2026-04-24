@@ -176,6 +176,43 @@ class MLAAttention(nn.Module):
             value_states = F.pad(value_states, [0, self.qk_head_dim - self.v_head_dim])
 
         # ====================================================
+        # 4.5 CROSS-DOCUMENT BLOCK MASKING
+        # ====================================================
+        document_ids = kwargs.get("document_ids", None)
+        
+        if attention_mask is None:
+            past_len = key_states.shape[2] - seq_length - S
+            attention_mask = torch.zeros(
+                (batch_size, 1, seq_length, seq_length + past_len), 
+                device=query_states.device, 
+                dtype=query_states.dtype
+            )
+            if seq_length > 1:
+                causal_mask = torch.full(
+                    (seq_length, seq_length), 
+                    torch.finfo(query_states.dtype).min, 
+                    device=query_states.device, 
+                    dtype=query_states.dtype
+                )
+                causal_mask.triu_(diagonal=1)
+                attention_mask[..., :, past_len:] = causal_mask
+
+        if document_ids is not None:
+            doc_q = document_ids.view(batch_size, 1, seq_length, 1)
+            doc_k = document_ids.view(batch_size, 1, 1, seq_length)
+            
+            # Tokens can only attend if they are in the SAME document AND are not padding
+            same_doc = (doc_q == doc_k) & (doc_q != 0)
+            
+            # Overwrite cross-document connections with -INF
+            past_len = key_states.shape[2] - seq_length - S
+            attention_mask[..., :, past_len:] = torch.where(
+                same_doc, 
+                attention_mask[..., :, past_len:], 
+                torch.finfo(query_states.dtype).min
+            )
+
+        # ====================================================
         # 5. GUARANTEED SAFE-STARTUP GATE MASKING
         # ====================================================
         if memory_P is not None:
@@ -186,26 +223,6 @@ class MLAAttention(nn.Module):
             else:
                 memory_gate = torch.tensor(memory_gate, dtype=query_states.dtype, device=query_states.device).view(1, 1, 1, 1)
                 
-            # --- CRITICAL FIX ---
-            # If HF optimized away the attention mask for SDPA, we MUST build a causal mask.
-            # Otherwise, SDPA's is_causal=True handles text tokens but completely ignores our memory_gate!
-            if attention_mask is None:
-                past_len = key_states.shape[2] - seq_length - S
-                attention_mask = torch.zeros(
-                    (batch_size, 1, seq_length, seq_length + past_len), 
-                    device=query_states.device, 
-                    dtype=query_states.dtype
-                )
-                if seq_length > 1:
-                    causal_mask = torch.full(
-                        (seq_length, seq_length), 
-                        torch.finfo(query_states.dtype).min, 
-                        device=query_states.device, 
-                        dtype=query_states.dtype
-                    )
-                    causal_mask.triu_(diagonal=1)
-                    attention_mask[..., :, past_len:] = causal_mask
-                    
             # Safely prepend the S memory slots with the learned memory_gate penalty
             memory_mask = attention_mask.new_zeros((batch_size, 1, seq_length, S)) + memory_gate
             attention_mask = torch.cat([memory_mask, attention_mask], dim=-1)
