@@ -80,3 +80,15 @@ class M6LatentAdapter(nn.Module):
     def read(self, P_state: torch.Tensor):
         """Projects the global memory bank into layer-specific PCA latent bases."""
         return [proj(P_state) for proj in self.W_read]
+
+    def forward(self, P_state: torch.Tensor):
+        """
+        ZeRO-3 safe read path. Invoked via __call__ to trigger DeepSpeed's 
+        parameter gathering hooks for raw parameters like memory_gate.
+        """
+        memory_latents = self.read(P_state)
+        
+        # ✅ CRITICAL FIX: .clone() creates a new computational graph node.
+        # This prevents a use-after-free crash when ZeRO-3 partitions the 
+        # parameter back to size (0,) immediately after this hook exits!
+        return memory_latents, self.memory_gate.clone()

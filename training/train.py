@@ -240,8 +240,10 @@ class M6TBPTTTrainer(transformers.Trainer):
             
             # 3. Forward Pass & Loss Computation
             if P_state is not None:
-                chunk_inputs["memory_latents"] = model.memory_adapter.read(P_state)
-                chunk_inputs["memory_gate"] = model.memory_adapter.memory_gate
+                # ✅ FIX: Use __call__ to trigger ZeRO-3 gather hooks!
+                memory_latents, memory_gate = model.memory_adapter(P_state)
+                chunk_inputs["memory_latents"] = memory_latents
+                chunk_inputs["memory_gate"] = memory_gate
                 
             loss = self.compute_loss(model, chunk_inputs, return_outputs=False)
             
@@ -287,7 +289,14 @@ class M6TBPTTTrainer(transformers.Trainer):
             
         # In-place update registered buffer safely for ZeRO-3 (average across batch dimension)
         # We do this OUTSIDE the loop so it doesn't break PyTorch's backward graph for previous chunks!
-        model.memory_adapter.P.copy_(P_state.detach().mean(dim=0, keepdim=True))
+        P_mean = P_state.detach().mean(dim=0, keepdim=True)
+        
+        # --- BONUS FIX: Prevent Buffer Divergence Across GPUs ---
+        if torch.distributed.is_initialized():
+            torch.distributed.all_reduce(P_mean, op=torch.distributed.ReduceOp.SUM)
+            P_mean /= torch.distributed.get_world_size()
+            
+        model.memory_adapter.P.copy_(P_mean)
             
         return total_loss
 

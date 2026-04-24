@@ -142,8 +142,8 @@ def main():
         # Create P_1
         P_1 = model.memory_adapter.write(k_pass_evicted)
         
-        # FIX: Map P_1 into layer-specific coordinates
-        memory_latents_1 = model.memory_adapter.read(P_1)
+        # ✅ FIX: Map P_1 into layer coordinates using the ZeRO-3 safe forward pass
+        memory_latents_1, memory_gate_1 = model.memory_adapter(P_1)
         
         # Run Chunk 2 WITH memory injected
         outputs_mem_2 = model(
@@ -151,7 +151,7 @@ def main():
             attention_mask=attention_mask_2, 
             use_cache=False, 
             memory_latents=memory_latents_1,
-            memory_gate=model.memory_adapter.memory_gate
+            memory_gate=memory_gate_1
         )
         shift_logits_mem_2 = outputs_mem_2.logits[:, :-1, :].contiguous()
         loss_mem_2 = loss_function(shift_logits_mem_2.view(-1, shift_logits_mem_2.size(-1)), shift_labels_2.view(-1))

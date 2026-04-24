@@ -173,9 +173,10 @@ class MLAAttention(nn.Module):
         if memory_P is not None:
             memory_gate = kwargs.get("memory_gate", 0.0)
             if isinstance(memory_gate, torch.Tensor):
-                memory_gate = memory_gate.to(query_states.dtype)
+                # ✅ FIX: Force exactly 4 dimensions so + memory_gate broadcasts safely
+                memory_gate = memory_gate.to(query_states.dtype).view(1, 1, 1, 1)
             else:
-                memory_gate = torch.tensor(memory_gate, dtype=query_states.dtype, device=query_states.device)
+                memory_gate = torch.tensor(memory_gate, dtype=query_states.dtype, device=query_states.device).view(1, 1, 1, 1)
                 
             # --- CRITICAL FIX ---
             # If HF optimized away the attention mask for SDPA, we MUST build a causal mask.
