@@ -244,7 +244,7 @@ class M6TBPTTTrainer(transformers.Trainer):
                 k_pass = out[..., :model.memory_adapter.kv_lora_rank]
                 captured_k_pass.append(k_pass)
                 
-            handle = model.model.layers[0].self_attn.kv_a_proj_with_mqa.register_forward_hook(hook)
+            handle = model.model.layers[-1].self_attn.kv_a_proj_with_mqa.register_forward_hook(hook)
             
             # 3. Forward Pass & Loss Computation
             if P_state is not None:

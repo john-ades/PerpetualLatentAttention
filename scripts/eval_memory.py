@@ -130,8 +130,8 @@ def main():
             k_pass = out[..., :model.memory_adapter.kv_lora_rank]
             captured_k_pass.append(k_pass)
 
-        # Register hook to first layer
-        handle = model.model.layers[0].self_attn.kv_a_proj_with_mqa.register_forward_hook(hook)
+        # Register hook to last layer
+        handle = model.model.layers[-1].self_attn.kv_a_proj_with_mqa.register_forward_hook(hook)
         
         # Rerun Chunk 1 to capture its k_pass!
         model(input_ids=chunk_1_ids, attention_mask=attention_mask_1, use_cache=False)
@@ -164,7 +164,10 @@ def main():
         print(f"Chunk 2 PPL (With Memory): {ppl_mem_2:.2f}")
 
     print("\n--- Summary ---")
-    print(f"Memory improved PPL on Chunk 2 from {ppl_base_2:.2f} to {ppl_mem_2:.2f}")
+    if ppl_mem_2 < ppl_base_2:
+        print(f"Memory improved PPL on Chunk 2 from {ppl_base_2:.2f} to {ppl_mem_2:.2f}")
+    else:
+        print(f"Memory degraded PPL on Chunk 2 from {ppl_base_2:.2f} to {ppl_mem_2:.2f}")
 
     if wandb.run is not None:
         wandb.log({
